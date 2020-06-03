@@ -12,6 +12,8 @@ const freeFork = -1
 
 var forks = make(map[int]int)
 
+var forkChannels = make([]chan int, 5)
+
 var l = sync.Mutex{}
 
 const numOfPhil = 5
@@ -29,6 +31,10 @@ func main() {
 	log.SetFlags(log.Lmicroseconds)
 
 	for i := 0; i < numOfPhil; i++ {
+		forkChannels[i] = make(chan int, 1)
+		forkChannels[i] <- i
+		forks[i] = freeFork
+
 		right := (i + 1) % numOfPhil
 		go philosopher(i, i, right)
 	}
@@ -42,6 +48,7 @@ func main() {
 
 func printForksAndStats() {
 	for {
+		time.Sleep(time.Second * 2)
 		fmt.Println("================")
 		total := 0
 		for i := 0; i < numOfPhil; i++ {
@@ -50,7 +57,7 @@ func printForksAndStats() {
 				total++
 			}
 		}
-		if total == 5 {
+		if total == numOfPhil {
 			fmt.Printf(">>>>>>>All forks are being used<<<<<<<\n")
 		}
 		for i := 0; i < numOfPhil; i++ {
@@ -65,65 +72,37 @@ func printForksAndStats() {
 			fmt.Printf("userID:%d thinkTime(ave):%v, thinkCount:%d, eatTime(ave):%v, eatCount:%d, TotalTime:%v\n",
 				i, averThink, stats[i].thinkCount, averEat, stats[i].eatCount, stats[i].thinkTime+stats[i].eatTime)
 		}
-
-		time.Sleep(time.Second * 2)
-	}
-}
-
-func registerFork(id int) {
-	_, ok := forks[id]
-	if !ok {
-		l.Lock()
-		forks[id] = freeFork
-		l.Unlock()
 	}
 }
 
 // Returns true if able to pick up
 func pickFork(userID, forkID int, timeout time.Duration) bool {
-	for {
-		l.Lock()
-		val, ok := forks[forkID]
-		l.Unlock()
-		if !ok {
-			log.Panic("Unknown fork ", forkID)
+	select {
+	case val := <-forkChannels[forkID]:
+		log.Println("Philosopher", userID, "picked up fork", forkID, "val:", val)
+		if val != forkID {
+			log.Panic("Val", val, "fork", forkID)
 		}
-		if val == freeFork {
-			l.Lock()
-			forks[forkID] = userID
-			l.Unlock()
-			break
-		}
-		time.Sleep(time.Millisecond * 100)
-		timeout -= 100 * time.Millisecond
-		if timeout <= 0 {
-			return false
-		}
+		forks[forkID] = userID
+		return true
+	case <-time.After(timeout):
+		log.Println("Philosopher", userID, "couldn't pick up fork", forkID)
+		return false
 	}
-	log.Println("Philosopher", userID, "picked up fork", forkID)
-	return true
 }
 
 func releaseFork(userID, forkID int) {
-	l.Lock()
-	val, ok := forks[forkID]
-	l.Unlock()
-	if !ok {
-		log.Panic("Unknown fork ", forkID)
+	select {
+	case forkChannels[forkID] <- forkID:
+		log.Println("Philosopher", userID, "released fork", forkID)
+		forks[forkID] = freeFork
+	default:
+		log.Panic("< ----------- Cannot release fork", forkID, " it is already released -------------->")
 	}
-	if val == freeFork {
-		log.Panic("Unused fork ", forkID)
-	}
-	l.Lock()
-	forks[forkID] = freeFork
-	l.Unlock()
-	log.Println("Philosopher", userID, "released fork", forkID)
 }
 
 func philosopher(userID, leftForkID, rightForkID int) {
 	log.Println("Philosopher", userID, "started. Left Fork:", leftForkID, ", Right Fork:", rightForkID)
-	registerFork(leftForkID)
-	registerFork(rightForkID)
 
 	for {
 		timeStart := time.Now()
@@ -140,7 +119,7 @@ func philosopher(userID, leftForkID, rightForkID int) {
 			if !picked {
 				log.Println(">>>>>>> Phil:", userID, "couldn't get right fork. Releasing left fork:", leftForkID)
 				releaseFork(userID, leftForkID)
-				time.Sleep(time.Second)
+				// time.Sleep(time.Second)
 			}
 		}
 
@@ -158,7 +137,7 @@ func philosopher(userID, leftForkID, rightForkID int) {
 		timeStart = time.Now()
 		releaseFork(userID, leftForkID)
 		releaseFork(userID, rightForkID)
-		time.Sleep(time.Second)
+		// time.Sleep(time.Second)
 	}
 }
 
