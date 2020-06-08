@@ -97,7 +97,7 @@ func releaseFork(userID, forkID int) {
 		log.Println("Philosopher", userID, "released fork", forkID)
 		forks[forkID] = freeFork
 	default:
-		log.Panic("< ----------- Cannot release fork", forkID, " it is already released -------------->")
+		log.Panic("<----------- Cannot release fork", forkID, " it is already released -------------->")
 	}
 }
 
@@ -119,7 +119,6 @@ func philosopher(userID, leftForkID, rightForkID int) {
 			if !picked {
 				log.Println(">>>>>>> Phil:", userID, "couldn't get right fork. Releasing left fork:", leftForkID)
 				releaseFork(userID, leftForkID)
-				// time.Sleep(time.Second)
 			}
 		}
 
@@ -137,7 +136,6 @@ func philosopher(userID, leftForkID, rightForkID int) {
 		timeStart = time.Now()
 		releaseFork(userID, leftForkID)
 		releaseFork(userID, rightForkID)
-		// time.Sleep(time.Second)
 	}
 }
 
